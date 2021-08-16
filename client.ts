@@ -1,119 +1,50 @@
 import {TritonClient, TritonGame} from "ts-triton";
+import {Star} from "ts-triton/dist/game";
 
-declare type Star = {
-    /**
-     * The name of the star.
-     */
-    n: string;
-    /**
-     * The ID of the player who owns this star.
-     */
-    puid: number;
-    /**
-     * The ID of this star.
-     */
-    uid: number;
-    /**
-     * If the star is visible to the user.
-     * 0 = no
-     * 1 = yes
-     */
-    v: string;
-    /**
-     * The X coordinate of the star.
-     * The value is 1/8 the amount of light years distance.
-     */
-    x: string;
-    /**
-     * The Y coordinate of the star.
-     * The value is 1/8 the amount of light years distance.
-     */
-    y: string;
-    /**
-     * The current economy level.
-     * Only present when the star is visible to the user.
-     */
-    e?: number;
-    /**
-     * If the star has a warpgate.
-     * Only present when the star is visible to the user.
-     * 0 = no
-     * 1 = yes
-     */
-    ga?: number;
-    /**
-     * The current industry level.
-     * Only present when the star is visible to the user.
-     */
-    i?: number;
-    /**
-     * The natural resources of the star.
-     * Only present when the star is visible to the user.
-     */
-    nr?: number;
-    /**
-     * The total resources of the star, including terraforming bonus.
-     * Only present when the star is visible to the user.
-     */
-    r?: number;
-    /**
-     * The current science level.
-     * Only present when the star is visible to the user.
-     */
-    s?: number;
-    /**
-     * The number of ships on the star.
-     * Only present when the star is visible to the user.
-     */
-    st?: number;
-};
+export async function initClient(email: string, password: string, gameRef: string) {
+    const tritonClient = new TritonClient(email, password);
+    if(await tritonClient.authenticate()) {
+        return new Client(tritonClient, gameRef);
+    }
+    throw new Error(tritonClient.loginErrorMessage);
+}
 
 class Client {
     client: TritonClient;
     game: TritonGame
-    game_ref: string
     event_messages: any
 
-    constructor(email: string, password: string, game_ref: string) {
-        this.client = new TritonClient(email, password);
-        this.game_ref = game_ref
+    constructor(tritonClient: TritonClient, gameRef: string) {
+        this.client = tritonClient;
+        this.game = this.client.getGame(gameRef);
     }
 
-    async init(): Promise<boolean> {
-        if (await this.client.authenticate()) {
-            this.game = this.client.getGame(this.game_ref)
-            return true
-        }
-        return false
-    }
-
-
-    async get_message() {
+    async getMessage() {
         const {diplomacy, events} = await this.game.getUnreadCount()
         this.event_messages = (await this.game.getEventMessages(events)).messages;
         return this.event_messages
     }
 
-    get_money(): number {
+    async getMoney(): Promise<number> {
+        await this.game.getFullUniverse();
         return this.game.currentUniverse.players[this.game.currentUniverse.player_uid].cash;
     }
 
     // buy 1 science on a specific star
-    async buy_science(star: Star, max_money: number) {
-        if (Client.get_cost(star).sciCost < max_money) {
-            await this.game.buyScience(star.uid.toString(), max_money)
-            return true
+    buyScience(star: Star, maxMoney: number) {
+        const cost = Client.getCost(star);
+        if (cost.sciCost < maxMoney) {
+            return this.game.buyScience(star.uid.toString(), cost.sciCost)
         }
-        return false
+        return Promise.reject('Not enough money to buy this upgrade.');
     }
 
-    // the key is the stars id
-    get_player_owned_stars(): Star[] {
+    getPlayerOwnedStars(): Star[] {
         const starArray = Object.values(this.game.currentUniverse.stars)
         return starArray.filter(star => star.puid === this.game.currentUniverse.player_uid)
     }
 
-    private static get_cost(star: Star): { econCost: number, indusCost: number, sciCost: number } {
+    private static getCost(star: Star): { econCost: number, indusCost: number, sciCost: number } {
         return {
             econCost: Math.floor((2.5 * (star.e + 1)) / (star.r / 100)),
             indusCost: Math.floor((5 * (star.i + 1)) / (star.r / 100)),
