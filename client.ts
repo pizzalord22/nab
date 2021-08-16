@@ -70,23 +70,23 @@ declare type Star = {
 
 class Client {
     client: TritonClient;
-    game_ref: string
     game: TritonGame
+    game_ref: string
     event_messages: any
 
     constructor(email: string, password: string, game_ref: string) {
         this.client = new TritonClient(email, password);
-        this.game_ref = game_ref;
+        this.game_ref = game_ref
     }
 
-    async authenticate() {
-        await this.client.authenticate();
+    async init(): Promise<boolean> {
+        if (await this.client.authenticate()) {
+            this.game = this.client.getGame(this.game_ref)
+            return true
+        }
+        return false
     }
 
-    async get_game() {
-        this.game = this.client.getGame(this.game_ref)
-        await this.game.getFullUniverse()
-    }
 
     async get_message() {
         const {diplomacy, events} = await this.game.getUnreadCount()
@@ -108,8 +108,9 @@ class Client {
     }
 
     // the key is the stars id
-    get_player_owned_stars(): { [key: string]: Star } {
-        return this.game.currentUniverse.stars
+    get_player_owned_stars(): Star[] {
+        const starArray = Object.values(this.game.currentUniverse.stars)
+        return starArray.filter(star => star.puid === this.game.currentUniverse.player_uid)
     }
 
     private static get_cost(star: Star): { econCost: number, indusCost: number, sciCost: number } {
