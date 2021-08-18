@@ -3,13 +3,13 @@ import {Star} from "ts-triton/dist/game";
 
 export async function initClient(email: string, password: string, gameRef: string) {
     const tritonClient = new TritonClient(email, password);
-    if(await tritonClient.authenticate()) {
+    if (await tritonClient.authenticate()) {
         return new Client(tritonClient, gameRef);
     }
     throw new Error(tritonClient.loginErrorMessage);
 }
 
-class Client {
+export class Client {
     client: TritonClient;
     game: TritonGame
     event_messages: any
@@ -25,26 +25,38 @@ class Client {
         return this.event_messages
     }
 
-    async getMoney(): Promise<number> {
+    async getMoney(): Promise<number|undefined> {
         await this.game.getFullUniverse();
         return this.game.currentUniverse.players[this.game.currentUniverse.player_uid].cash;
     }
 
     // buy 1 science on a specific star
     buyScience(star: Star, maxMoney: number) {
-        const cost = Client.getCost(star);
-        if (cost.sciCost < maxMoney) {
+        const cost = this.getCost(star);
+        if (cost.sciCost <= maxMoney) {
             return this.game.buyScience(star.uid.toString(), cost.sciCost)
         }
+
+        console.log(cost.sciCost, maxMoney);
         return Promise.reject('Not enough money to buy this upgrade.');
     }
 
-    getPlayerOwnedStars(): Star[] {
+    async getPlayerOwnedStars(): Promise<Star[]> {
+        await this.game.getFullUniverse();
         const starArray = Object.values(this.game.currentUniverse.stars)
         return starArray.filter(star => star.puid === this.game.currentUniverse.player_uid)
     }
 
-    private static getCost(star: Star): { econCost: number, indusCost: number, sciCost: number } {
+    getCost(star: Star): { econCost: number, indusCost: number, sciCost: number } {
+        if (star == undefined || (star.e == undefined || star.i == undefined || star.s == undefined|| star.r == undefined)) {
+            return {
+                econCost: 99999999,
+                indusCost: 99999999,
+                sciCost: 99999999,
+
+            }
+        }
+
         return {
             econCost: Math.floor((2.5 * (star.e + 1)) / (star.r / 100)),
             indusCost: Math.floor((5 * (star.i + 1)) / (star.r / 100)),
