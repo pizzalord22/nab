@@ -19,6 +19,7 @@ export class Client {
         this.game = this.client.getGame(gameRef);
     }
 
+    // get event messages
     async getMessage() {
         const {diplomacy, events} = await this.game.getUnreadCount()
         this.event_messages = (await this.game.getEventMessages(events)).messages;
@@ -41,12 +42,14 @@ export class Client {
         return Promise.reject('Not enough money to buy this upgrade.');
     }
 
+    // get the stars owned by the player
     async getPlayerOwnedStars(): Promise<Star[]> {
         await this.game.getFullUniverse();
         const starArray = Object.values(this.game.currentUniverse.stars)
         return starArray.filter(star => star.puid === this.game.currentUniverse.player_uid)
     }
 
+    // get the cost of upgrades
     getCost(star: Star): { econCost: number, indusCost: number, sciCost: number } {
         if (star == undefined || (star.e == undefined || star.i == undefined || star.s == undefined|| star.r == undefined)) {
             return {
